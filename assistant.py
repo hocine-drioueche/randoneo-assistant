@@ -9,32 +9,41 @@ Ce script :
 """
 
 import os
+from typing import Literal, Optional
 
 from dotenv import load_dotenv
-from langchain.chat_models import init_chat_model
-from typing import Literal, Optional
 from pydantic import BaseModel, Field
+from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import (
+    RunnableLambda,
+    RunnableParallel,
+    RunnablePassthrough,
+)
 
+from tools import (
+    get_order_status,
+    get_product,
+    search_catalog,
+    search_knowledge_base,
+    OrderNotFoundError,
+    ProductNotFoundError,
+)
 
 
 # ============================================================
 # 0. CONFIGURATION
 # ============================================================
 
-# Charge le fichier .env (met ANTHROPIC_API_KEY dans os.environ)
 load_dotenv()
 
-# Vérifie que la clé API est bien présente
 if not os.getenv("ANTHROPIC_API_KEY"):
     raise ValueError(
         "ANTHROPIC_API_KEY manquante. "
         "Vérifie ton fichier .env à la racine du projet."
     )
 
-# Crée le modèle Claude
 model = init_chat_model(
     "claude-haiku-4-5",
     model_provider="anthropic",
@@ -89,22 +98,9 @@ extract_prompt = ChatPromptTemplate.from_messages([
 extractor = extract_prompt | model.with_structured_output(SupportTicket)
 
 
-
 # ============================================================
 # 2. RÉCUPÉRATION DU CONTEXTE (outils)
 # ============================================================
-
-
-
-from tools import (
-    get_order_status,
-    get_product,
-    search_catalog,
-    search_knowledge_base,
-    OrderNotFoundError,
-    ProductNotFoundError,
-)
-
 
 def _format_order(order) -> str:
     """Formate une commande en texte lisible."""
@@ -163,25 +159,16 @@ def _format_kb_results(passages) -> str:
 
 
 def fetch_context(ticket: SupportTicket) -> str:
-    """
-    Récupère le contexte selon le ticket.
-
-    - Si order_id → get_order_status
-    - Si sku → get_product
-    - Sinon → search_catalog + search_knowledge_base (parallèle)
-    """
+    """Récupère le contexte selon le ticket."""
     try:
-        # Cas 1 : numéro de commande
         if ticket.order_id:
             order = get_order_status(ticket.order_id)
             return _format_order(order)
 
-        # Cas 2 : référence produit spécifique
         if ticket.sku:
             product = get_product(ticket.sku)
             return _format_product(product)
 
-        # Cas 3 : question ouverte → catalogue + base de connaissances
         parallel_search = RunnableParallel(
             catalog=RunnableLambda(lambda _: search_catalog(ticket.summary)),
             kb=RunnableLambda(lambda _: search_knowledge_base(ticket.summary)),
@@ -213,15 +200,9 @@ def fetch_context(ticket: SupportTicket) -> str:
 context_chain = RunnableLambda(fetch_context)
 
 
-
-
-
-
 # ============================================================
 # 3. RÉDACTION DE LA RÉPONSE
 # ============================================================
-
-
 
 answer_prompt = ChatPromptTemplate.from_messages([
     (
@@ -250,152 +231,94 @@ answer_prompt = ChatPromptTemplate.from_messages([
 answer_chain = answer_prompt | model | StrOutputParser()
 
 
-
-
-
 # ============================================================
 # 4. ASSEMBLAGE DE LA CHAÎNE
 # ============================================================
 
-from langchain_core.runnables import RunnablePassthrough
+def build_chain_input(x):
+    """Construit le dict complet pour la chaîne."""
+    return {
+        "message": x["message"],
+        "history": x.get("history", "(aucun échange précédent)"),
+    }
 
 
 chain = (
-    RunnablePassthrough.assign(ticket=extractor)
+    RunnablePassthrough.assign(ticket=lambda x: extractor.invoke({"message": x["message"]}))
     | RunnablePassthrough.assign(context=lambda x: fetch_context(x["ticket"]))
     | RunnablePassthrough.assign(answer=answer_chain)
 )
+# ============================================================
+# 5. BOUCLE DE CHAT
+# ============================================================
+
+def _format_history(history: list[dict]) -> str:
+    """Formate l'historique en texte lisible pour le prompt."""
+    if not history:
+        return "(aucun échange précédent)"
+    lines = []
+    for msg in history[-6:]:  # Garder les 6 derniers messages
+        role = "Client" if msg["role"] == "user" else "Assistant"
+        lines.append(f"{role} : {msg['content']}")
+    return "\n".join(lines)
 
 
+def chat():
+    """Boucle de chat principale."""
+    history: list[dict] = []
 
+    print("=" * 60)
+    print("  Assistant de support Randoneo")
+    print("  Tapez 'quit' pour quitter.")
+    print("=" * 60)
+    print()
+
+    while True:
+        try:
+            question = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nÀ bientôt !")
+            break
+
+        if question.lower() in ("quit", "exit", "q"):
+            print("À bientôt !")
+            break
+
+        if not question:
+            continue
+
+        history_text = _format_history(history)
+
+        print("\nAssistant : ", end="", flush=True)
+        full_response = ""
+
+        try:
+            for chunk in chain.stream({
+                "message": question,
+                "history": history_text,
+            }):
+                if "answer" in chunk:
+                    text = chunk["answer"]
+                    print(text, end="", flush=True)
+                    full_response += text
+        except Exception as e:
+            print(f"\n[Erreur] {e}")
+            continue
+
+        print("\n")
+
+        # Mise à jour de la mémoire (léger)
+        history.append({"role": "user", "content": question})
+        history.append({"role": "assistant", "content": full_response})
+
+        # Limiter la mémoire aux 10 derniers échanges
+        if len(history) > 20:
+            history = history[-20:]
 
 
 # ============================================================
-# TEST MINIMAL
-# ============================================================
-
-if __name__ == "__main__":
-    print("Test de la configuration...")
-    print(f"Modèle : {model.model_name if hasattr(model, 'model_name') else 'claude-haiku-4-5'}")
-    print("Envoi d'un message de test...\n")
-
-    response = model.invoke("Dis bonjour en une phrase, en français.")
-    print(f"Réponse : {response.content}")
-    print("\n✅ Configuration OK.")
-
-
-
-# ============================================================
-# ============================================================
-
-if __name__ == "__main__":
-    print("Test de l'extraction du ticket...\n")
-
-    messages_test = [
-        "Ma commande RND-10238 n'est jamais arrivée et je pars en trek demain, c'est urgent !",
-        "Bonjour, quelle tente légère conseillez-vous pour 2 personnes en bivouac ?",
-        "Je veux renvoyer ma tente, elle est trop petite. Commande RND-10240.",
-        "Vous recrutez des saisonniers ?",
-    ]
-
-    for msg in messages_test:
-        print(f"Message : {msg}")
-        ticket = extractor.invoke({"message": msg})
-        print(f"  → intent   : {ticket.intent}")
-        print(f"  → order_id : {ticket.order_id}")
-        print(f"  → sku      : {ticket.sku}")
-        print(f"  → summary  : {ticket.summary}")
-        print()
-
-
-
-# ============================================================
-# ============================================================
-
-if __name__ == "__main__":
-    print("Test de la récupération du contexte...\n")
-
-    messages_test = [
-        "Ma commande RND-10238 n'est jamais arrivée et je pars en trek demain, c'est urgent !",
-        "Bonjour, quelle tente légère conseillez-vous pour 2 personnes en bivouac ?",
-        "Parlez-moi du produit TNT-2P-AERO",
-        "Et la commande RND-99999 ?",
-    ]
-
-    for msg in messages_test:
-        print(f"Message : {msg}")
-        ticket = extractor.invoke({"message": msg})
-        print(f"  → intent   : {ticket.intent}")
-        print(f"  → order_id : {ticket.order_id}")
-        print(f"  → sku      : {ticket.sku}")
-        print(f"\n  Contexte récupéré :")
-        context = fetch_context(ticket)
-        for line in context.split("\n"):
-            print(f"    {line}")
-        print("\n" + "=" * 60 + "\n")
-
-
-
-# ============================================================
+# 6. POINT D'ENTRÉE
 # ============================================================
 
 if __name__ == "__main__":
-    print("Test de la rédaction de la réponse...\n")
-
-    messages_test = [
-        "Ma commande RND-10238 n'est jamais arrivée et je pars en trek demain, c'est urgent !",
-        "Bonjour, quelle tente légère conseillez-vous pour 2 personnes en bivouac ?",
-        "Parlez-moi du produit TNT-2P-AERO",
-        "Et la commande RND-99999 ?",
-    ]
-
-    for msg in messages_test:
-        print(f"Message : {msg}")
-
-        # Extraction
-        ticket = extractor.invoke({"message": msg})
-
-        # Récupération du contexte
-        context = fetch_context(ticket)
-
-        # Rédaction
-        answer = answer_chain.invoke({
-            "message": msg,
-            "context": context,
-            "history": "(aucun échange précédent)",
-        })
-
-        print(f"\n  → Réponse :\n    {answer}\n")
-        print("=" * 60 + "\n")
-
-
-
-
-
-# ============================================================
-# ============================================================
-
-
-if __name__ == "__main__":
-    print("Test de la chaîne complète...\n")
-
-    messages_test = [
-        "Ma commande RND-10238 n'est jamais arrivée et je pars en trek demain, c'est urgent !",
-        "Bonjour, quelle tente légère conseillez-vous pour 2 personnes en bivouac ?",
-        "Et la commande RND-99999 ?",
-    ]
-
-    for msg in messages_test:
-        print(f"Message : {msg}")
-
-        result = chain.invoke({
-            "message": msg,
-            "history": "(aucun échange précédent)",
-        })
-
-        print(f"\n  → Ticket :")
-        print(f"    intent   : {result['ticket'].intent}")
-        print(f"    order_id : {result['ticket'].order_id}")
-        print(f"    sku      : {result['ticket'].sku}")
-        print(f"\n  → Réponse :\n    {result['answer']}\n")
-        print("=" * 60 + "\n")
+    chat()
