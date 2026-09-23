@@ -249,6 +249,27 @@ answer_prompt = ChatPromptTemplate.from_messages([
 
 answer_chain = answer_prompt | model | StrOutputParser()
 
+
+
+
+
+# ============================================================
+# 4. ASSEMBLAGE DE LA CHAÎNE
+# ============================================================
+
+from langchain_core.runnables import RunnablePassthrough
+
+
+chain = (
+    RunnablePassthrough.assign(ticket=extractor)
+    | RunnablePassthrough.assign(context=lambda x: fetch_context(x["ticket"]))
+    | RunnablePassthrough.assign(answer=answer_chain)
+)
+
+
+
+
+
 # ============================================================
 # TEST MINIMAL
 # ============================================================
@@ -345,4 +366,36 @@ if __name__ == "__main__":
         })
 
         print(f"\n  → Réponse :\n    {answer}\n")
+        print("=" * 60 + "\n")
+
+
+
+
+
+# ============================================================
+# ============================================================
+
+
+if __name__ == "__main__":
+    print("Test de la chaîne complète...\n")
+
+    messages_test = [
+        "Ma commande RND-10238 n'est jamais arrivée et je pars en trek demain, c'est urgent !",
+        "Bonjour, quelle tente légère conseillez-vous pour 2 personnes en bivouac ?",
+        "Et la commande RND-99999 ?",
+    ]
+
+    for msg in messages_test:
+        print(f"Message : {msg}")
+
+        result = chain.invoke({
+            "message": msg,
+            "history": "(aucun échange précédent)",
+        })
+
+        print(f"\n  → Ticket :")
+        print(f"    intent   : {result['ticket'].intent}")
+        print(f"    order_id : {result['ticket'].order_id}")
+        print(f"    sku      : {result['ticket'].sku}")
+        print(f"\n  → Réponse :\n    {result['answer']}\n")
         print("=" * 60 + "\n")
