@@ -1,0 +1,41 @@
+[
+  {
+    "order_id": "RND-10234",
+    "customer_id": "CUST-001",
+    "status": "shipped",
+    "items": [
+      {
+        "sku": "TNT-2P-AERO",
+        "quantity": 1,
+        "unit_price_eur": 189.0
+      },
+      {
+        "sku": "MAT-SLEEP-UL",
+        "quantity": 2,
+        "unit_price_eur": 69.0
+      }
+    ],
+    "total_eur": 327.0,
+    "shipping_method": "standard",
+    "tracking_number": "TRK-FR-884512",
+    "eta": "2026-06-15",
+    "created_at": "2026-06-10"
+  },
+  {
+    "order_id": "RND-10238",
+    "customer_id": "CUST-002",
+    "status": "return_requested",
+    "items": [
+      {
+        "sku": "TNT-3P-DOME",
+        "quantity": 1,
+        "unit_price_eur": 249.0
+      }
+    ],
+    "total_eur": 249.0,
+    "shipping_method": "express",
+    "tracking_number": "TRK-FR-884980",
+    "eta": "2026-06-12",
+    "created_at": "2026-06-08"
+  }
+]

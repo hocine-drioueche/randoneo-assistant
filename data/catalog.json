@@ -1,0 +1,70 @@
+[
+  {
+    "sku": "TNT-2P-AERO",
+    "name": "Tente Aero 2 places",
+    "category": "Tentes",
+    "price_eur": 189.0,
+    "stock": 12,
+    "attributes": {
+      "places": 2,
+      "weight_g": 1900,
+      "waterproof_mm": 3000,
+      "seasons": 3
+    },
+    "description": "Tente légère 2 places, double-toit déperlant 3000 mm, idéale pour le trek 3 saisons. Montage 2 arceaux en 5 minutes."
+  },
+  {
+    "sku": "TNT-1P-UL",
+    "name": "Tente Ultralight 1 place",
+    "category": "Tentes",
+    "price_eur": 169.0,
+    "stock": 17,
+    "attributes": {
+      "places": 1,
+      "weight_g": 1100,
+      "waterproof_mm": 3000,
+      "seasons": 3
+    },
+    "description": "Tente solo ultralégère 1100 g, idéale pour la randonnée rapide et le bikepacking. Mât unique, montage minute."
+  },
+  {
+    "sku": "TNT-3P-DOME",
+    "name": "Tente Dôme 3 places",
+    "category": "Tentes",
+    "price_eur": 249.0,
+    "stock": 0,
+    "attributes": {
+      "places": 3,
+      "weight_g": 3200,
+      "waterproof_mm": 4000,
+      "seasons": 3
+    },
+    "description": "Tente dôme spacieuse 3 places avec grande abside. Colonne d'eau 4000 mm. Parfaite pour le camping en famille."
+  },
+  {
+    "sku": "TNT-4P-FAM",
+    "name": "Tente familiale 4 places",
+    "category": "Tentes",
+    "price_eur": 329.0,
+    "stock": 7,
+    "attributes": {
+      "places": 4,
+      "weight_g": 5800,
+      "waterproof_mm": 4000,
+      "seasons": 3
+    },
+    "description": "Grande tente familiale 4 places avec deux chambres et séjour central. Hauteur debout, idéale pour le camping fixe."
+  },
+  {
+    "sku": "MAT-SLEEP-UL",
+    "name": "Matelas gonflable ultraléger",
+    "category": "Couchage",
+    "price_eur": 69.0,
+    "stock": 23,
+    "attributes": {
+      "weight_g": 380,
+      "r_value": 3.2
+    },
+    "description": "Matelas gonflable 380 g, R-value 3.2, compact, parfait pour le bivouac léger et le trek."
+  }
+]
