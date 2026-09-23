@@ -5,6 +5,10 @@ d'équipement outdoor. L'assistant comprend les questions en langage naturel,
 consulte les vraies données (catalogue, commandes, documentation) et répond
 de manière fiable et contextualisée.
 
+## Statut du projet
+
+✅ **Fonctionnel** — Toutes les fonctionnalités sont opérationnelles.
+
 ## Fonctionnalités
 
 - **Compréhension** : extraction d'un ticket structuré (intention, n° de commande, SKU)
@@ -46,7 +50,7 @@ Crée un fichier `.env` à la racine du projet :
 
 ```bash
 cp .env.example .env
-# Puis édite .env avec ta vraie clé
+# Puis édite .env avec ta vraie clé Anthropic
 ```
 
 ### 5. Vérifier les données
@@ -70,6 +74,15 @@ Puis pose tes questions :
 > quit
 ```
 
+## Tester les outils isolément
+
+```bash
+python tools.py
+```
+
+Cela teste les 4 outils (`get_order_status`, `get_product`, `search_catalog`,
+`search_knowledge_base`) sur des exemples.
+
 ## Architecture
 
 ```
@@ -80,12 +93,37 @@ randoneo-assistant/
 │   ├── catalog.json
 │   ├── orders.json
 │   └── knowledge_base.json
+├── docs/               # Documentation (images)
+│   └── pipeline.png
 ├── requirements.txt
 ├── .env                # Clé API (non commité)
 ├── .env.example        # Modèle
 └── README.md
 ```
 
+## Architecture visuelle
+
+![Pipeline de l'assistant](docs/pipeline.png)
+
+*Le pipeline : comprendre → récupérer → rédiger, avec mémoire.*
+
+## Comment ça marche
+
+1. **Extraction** : le message est transformé en `SupportTicket` (Pydantic)
+2. **Récupération** : selon le ticket, on appelle le bon outil
+3. **Rédaction** : le prompt impose de s'appuyer uniquement sur le contexte
+4. **Mémoire** : l'historique léger est réinjecté dans le prompt
+
+## Compétences mobilisées
+
+- **LangChain / LCEL** : composer des runnables avec `|`
+- **RunnablePassthrough.assign** : assembler la chaîne
+- **Sortie structurée** : `with_structured_output` + Pydantic
+- **RunnableParallel** : recherche catalogue + base de connaissances
+- **Mémoire de conversation** : un historique léger réinjecté
+- **Streaming** : afficher la réponse au fil de l'eau
+
 ## Auteur
 
 Hocine Drioueche — [drioueche.hocine@gmail.com](mailto:drioueche.hocine@gmail.com)
+
