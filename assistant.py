@@ -16,6 +16,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnableParallel
+from langchain_core.output_parsers import StrOutputParser
 
 
 
@@ -215,6 +216,39 @@ context_chain = RunnableLambda(fetch_context)
 
 
 
+
+# ============================================================
+# 3. RÉDACTION DE LA RÉPONSE
+# ============================================================
+
+
+
+answer_prompt = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "Tu es l'assistant de support de Randoneo, un e-commerce de matériel outdoor. "
+        "Réponds en français, avec un ton chaleureux et professionnel, en 4 phrases maximum.\n\n"
+        "RÈGLES STRICTES :\n"
+        "1. Appuie-toi UNIQUEMENT sur le contexte fourni ci-dessous.\n"
+        "2. N'invente JAMAIS un statut, un prix, un délai ou une information.\n"
+        "3. Si le contexte dit 'INFORMATION INTROUVABLE', dis-le poliment au client "
+        "et demande-lui de vérifier sa référence.\n"
+        "4. Si le contexte ne contient pas l'information demandée, dis que tu ne l'as pas.\n"
+        "5. Termine par une prochaine étape utile si pertinent.",
+    ),
+    (
+        "user",
+        "Historique de la conversation :\n"
+        "{history}\n\n"
+        "Contexte (source de vérité) :\n"
+        "{context}\n\n"
+        "Message du client : {message}\n\n"
+        "Réponse :",
+    ),
+])
+
+answer_chain = answer_prompt | model | StrOutputParser()
+
 # ============================================================
 # TEST MINIMAL
 # ============================================================
@@ -278,3 +312,37 @@ if __name__ == "__main__":
         for line in context.split("\n"):
             print(f"    {line}")
         print("\n" + "=" * 60 + "\n")
+
+
+
+# ============================================================
+# ============================================================
+
+if __name__ == "__main__":
+    print("Test de la rédaction de la réponse...\n")
+
+    messages_test = [
+        "Ma commande RND-10238 n'est jamais arrivée et je pars en trek demain, c'est urgent !",
+        "Bonjour, quelle tente légère conseillez-vous pour 2 personnes en bivouac ?",
+        "Parlez-moi du produit TNT-2P-AERO",
+        "Et la commande RND-99999 ?",
+    ]
+
+    for msg in messages_test:
+        print(f"Message : {msg}")
+
+        # Extraction
+        ticket = extractor.invoke({"message": msg})
+
+        # Récupération du contexte
+        context = fetch_context(ticket)
+
+        # Rédaction
+        answer = answer_chain.invoke({
+            "message": msg,
+            "context": context,
+            "history": "(aucun échange précédent)",
+        })
+
+        print(f"\n  → Réponse :\n    {answer}\n")
+        print("=" * 60 + "\n")
