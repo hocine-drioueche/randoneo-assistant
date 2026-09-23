@@ -12,6 +12,10 @@ import os
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
+from typing import Literal, Optional
+from pydantic import BaseModel, Field
+from langchain_core.prompts import ChatPromptTemplate
+
 
 
 # ============================================================
@@ -37,6 +41,59 @@ model = init_chat_model(
 )
 
 
+
+# ============================================================
+# 1. EXTRACTION DU TICKET (sortie structurée)
+# ============================================================
+
+
+
+
+Intent = Literal[
+    "order_tracking",
+    "return_refund",
+    "payment_issue",
+    "product_question",
+    "product_advice",
+    "account",
+    "other",
+]
+
+
+class SupportTicket(BaseModel):
+    """Ticket structuré extrait d'un message client."""
+
+    intent: Intent = Field(description="Intention principale du message")
+    order_id: Optional[str] = Field(
+        default=None,
+        description="Numéro de commande si mentionné, ex. RND-10234",
+    )
+    sku: Optional[str] = Field(
+        default=None,
+        description="Référence produit si mentionnée, ex. TNT-2P-AERO",
+    )
+    summary: str = Field(description="Résumé du problème en une phrase")
+
+
+extract_prompt = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "Tu extrais un ticket de support structuré du message client Randoneo "
+        "(e-commerce outdoor). Analyse le message et identifie :\n"
+        "- l'intention principale\n"
+        "- le numéro de commande s'il est mentionné (format RND-XXXXX)\n"
+        "- la référence produit si elle est mentionnée (format XXX-XX-XXXX)\n"
+        "- un résumé court du problème",
+    ),
+    ("user", "{message}"),
+])
+
+extractor = extract_prompt | model.with_structured_output(SupportTicket)
+
+
+
+
+
 # ============================================================
 # TEST MINIMAL
 # ============================================================
@@ -49,3 +106,25 @@ if __name__ == "__main__":
     response = model.invoke("Dis bonjour en une phrase, en français.")
     print(f"Réponse : {response.content}")
     print("\n✅ Configuration OK.")
+
+
+
+
+if __name__ == "__main__":
+    print("Test de l'extraction du ticket...\n")
+
+    messages_test = [
+        "Ma commande RND-10238 n'est jamais arrivée et je pars en trek demain, c'est urgent !",
+        "Bonjour, quelle tente légère conseillez-vous pour 2 personnes en bivouac ?",
+        "Je veux renvoyer ma tente, elle est trop petite. Commande RND-10240.",
+        "Vous recrutez des saisonniers ?",
+    ]
+
+    for msg in messages_test:
+        print(f"Message : {msg}")
+        ticket = extractor.invoke({"message": msg})
+        print(f"  → intent   : {ticket.intent}")
+        print(f"  → order_id : {ticket.order_id}")
+        print(f"  → sku      : {ticket.sku}")
+        print(f"  → summary  : {ticket.summary}")
+        print()
