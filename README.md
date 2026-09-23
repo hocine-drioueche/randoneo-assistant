@@ -107,6 +107,13 @@ randoneo-assistant/
 
 *Le pipeline : comprendre → récupérer → rédiger, avec mémoire.*
 
+
+### Architecture détaillée
+
+![Architecture détaillée](docs/diagram.png)
+
+*Vue complète : conversation CLI, chaîne d'orchestration, outils, données et modèle.*
+
 ## Comment ça marche
 
 1. **Extraction** : le message est transformé en `SupportTicket` (Pydantic)
